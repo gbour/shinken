@@ -123,7 +123,11 @@ class Service(SchedulingItem):
         'default_value':           StringProp(default=''),
 
         # Business_Impact value
-        'business_impact':               IntegerProp(default='2', fill_brok=['full_status']),
+        'business_impact':         IntegerProp(default='2', fill_brok=['full_status']),
+
+        # Load some triggers
+        'trigger'        :         StringProp(default=''),
+        'trigger_name'   :         ListProp   (default=''),
     })
 
     # properties used in the running state
@@ -248,6 +252,9 @@ class Service(SchedulingItem):
 
         # Set if the element just change its father/son topology
         'topology_change' : BoolProp(default=False, fill_brok=['full_status']),
+        
+        # Trigger list
+        'triggers'        :  StringProp(default=[])
 
     })
 
@@ -994,7 +1001,7 @@ class Services(Items):
     # service -> contacts
     def linkify(self, hosts, commands, timeperiods, contacts,
                 resultmodulations, businessimpactmodulations, escalations,
-                servicegroups):
+                servicegroups, triggers):
         self.linkify_with_timeperiods(timeperiods, 'notification_period')
         self.linkify_with_timeperiods(timeperiods, 'check_period')
         self.linkify_with_timeperiods(timeperiods, 'maintenance_period')
@@ -1009,6 +1016,7 @@ class Services(Items):
         # (just the escalation here, not serviceesca or hostesca).
         # This last one will be link in escalations linkify.
         self.linkify_with_escalations(escalations)
+        self.linkify_with_triggers(triggers)
 
 
     # We can link services with hosts so
@@ -1161,11 +1169,14 @@ class Services(Items):
 
     # We create new service if necessery (host groups and co)
     def explode(self, hosts, hostgroups, contactgroups,
-                servicegroups, servicedependencies):
+                servicegroups, servicedependencies, triggers):
         # The "old" services will be removed. All services with
         # more than one host or a host group will be in it
         srv_to_remove = []
 
+
+        # items::explode_trigger_string_into_triggers
+        self.explode_trigger_string_into_triggers(triggers)
 
         # items::explode_host_groups_into_hosts
         # take all hosts from our hostgroup_name into our host_name property

@@ -29,46 +29,49 @@ from shinken.trigger import Trigger
 
 
 class TestTriggers(ShinkenTest):
-    #Uncomment this is you want to use a specific configuration
-    #for your test
+    # Uncomment this is you want to use a specific configuration
+    # for your test
     def setUp(self):
         self.setup_with_file('etc/nagios_triggers.cfg')
 
     
-    #Change ME :)
+    # Change ME :)
     def test_simple_triggers(self):
         #
         # Config is not correct because of a wrong relative path
         # in the main config file
         #
         svc = self.sched.services.find_srv_by_name_and_hostname("test_host_0", "test_ok_0")
-        code = '''r = self.get_name()'''
-        t = Trigger(svc, code)
-        r = t.eval()
+        code = '''r = self.get_name()'''.replace(r'\n', '\n').replace(r'\t', '\t')
+        t = Trigger({'trigger_name' : 'none', 'code_src': code})
+        t.compile()
+        r = t.eval(svc)
         print r
 
-        code = '''self.output = "Moncul c'est du poulet" '''
-        t = Trigger(svc, code)
-        r = t.eval()
+        code = '''self.output = "Moncul c'est du poulet" '''.replace(r'\n', '\n').replace(r'\t', '\t')
+        t = Trigger({'trigger_name' : 'none', 'code_src': code})
+        t.compile()
+        r = t.eval(svc)
         print "Service output", svc.output
         self.assert_(svc.output == "Moncul c'est du poulet")
 
         code = '''self.output = "Moncul c'est du poulet2"
 self.perfdata = "Moncul c'est du poulet3"
-'''
-        t = Trigger(svc, code)
-        r = t.eval()
+'''.replace(r'\n', '\n').replace(r'\t', '\t')
+        t = Trigger({'trigger_name' : 'none', 'code_src': code})
+        t.compile()
+        r = t.eval(svc)
         print "Service output", svc.output
         print "Service perfdata", svc.perfdata
         self.assert_(svc.output == "Moncul c'est du poulet2")
         self.assert_(svc.perfdata == "Moncul c'est du poulet3")
 
-    #Change ME :)
+    # Change ME :)
     def test_in_conf_trigger(self):
         svc = self.sched.services.find_srv_by_name_and_hostname("test_host_0", "i_got_trigger")
-        print svc.trigger
-        t = Trigger(svc, svc.trigger)
-        t.eval()
+        print 'will run', svc.trigger
+        # Go!
+        svc.eval_triggers()
         print "Output", svc.output
         print "Perfdata", svc.perfdata
         self.assert_(svc.output == "New output")
@@ -81,13 +84,25 @@ self.perfdata = "Moncul c'est du poulet3"
         svc = self.sched.services.find_srv_by_name_and_hostname("test_host_0", "cpu_too_high")
         svc.output = 'I am OK'
         svc.perfdata = 'cpu=95%'
-        print svc.trigger
-        t = Trigger(svc, svc.trigger)
-        t.eval()
+        # Go launch it!
+        svc.eval_triggers()
         print "Output", svc.output
         print "Perfdata", svc.perfdata
         self.assert_(svc.output == "not good!")
         self.assert_(svc.perfdata == "cpu=95%")
+
+        # Same with an host
+        host = self.sched.hosts.find_by_name("test_host_trigger")
+        host.output = 'I am OK'
+        host.perfdata = 'cpu=95%'
+        # Go launch it!
+        host.eval_triggers()
+        self.scheduler_loop(2, [])
+        print "Output", host.output
+        print "Perfdata", host.perfdata
+        self.assert_(host.output == "not good!")
+        self.assert_(host.perfdata == "cpu=95%")
+
 
 
     # Try to catch the perfdatas of self
@@ -95,14 +110,42 @@ self.perfdata = "Moncul c'est du poulet3"
         svc = self.sched.services.find_srv_by_name_and_hostname("test_host_0", "cpu_too_high_bis")
         svc.output = 'I am OK'
         svc.perfdata = 'cpu=95%'
-        print svc.trigger
-        t = Trigger(svc, svc.trigger)
-        t.eval()
+        # Go launch it!
+        svc.eval_triggers()
         self.scheduler_loop(2, [])
         print "Output", svc.output
         print "Perfdata", svc.perfdata
         self.assert_(svc.output == "not good!")
         self.assert_(svc.perfdata == "cpu=95%")
+
+
+    # Try to load .trig files
+    def test_trig_file_loading(self):
+        svc = self.sched.services.find_srv_by_name_and_hostname("test_host_0", "cpu_too_high_ter")
+        t = self.conf.triggers.find_by_name('simple_cpu')
+        self.assert_(t in svc.triggers)
+        svc.output = 'I am OK'
+        svc.perfdata = 'cpu=95%'
+        svc.eval_triggers()
+        self.scheduler_loop(2, [])
+        print "Output", svc.output
+        print "Perfdata", svc.perfdata
+        self.assert_(svc.output == "not good!")
+        self.assert_(svc.perfdata == "cpu=95%")
+        
+
+        # same for host
+        host = self.sched.hosts.find_by_name('test_host_trigger2')
+        t = self.conf.triggers.find_by_name('simple_cpu')
+        self.assert_(t in host.triggers)
+        host.output = 'I am OK'
+        host.perfdata = 'cpu=95%'
+        host.eval_triggers()
+        self.scheduler_loop(2, [])
+        print "Output", host.output
+        print "Perfdata", host.perfdata
+        self.assert_(host.output == "not good!")
+        self.assert_(host.perfdata == "cpu=95%")
 
 
 

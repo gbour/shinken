@@ -572,6 +572,40 @@ Like temporary attributes such as "imported_from", etc.. """
             else:
                 setattr(self, prop, None)
 
+    
+    # We look at the 'trigger' prop and we create a trigger for it
+    def explode_trigger_string_into_triggers(self, triggers):
+        src = getattr(self, 'trigger', '')
+        if src:
+            # Change on the fly the characters
+            src = src.replace(r'\n', '\n').replace(r'\t', '\t')
+            t = triggers.create_trigger(src, 'inner-trigger-'+self.__class__.my_type+''+str(self.id))
+            if t:
+                print "Go link the trigger", t.__dict__
+                # Maybe the trigger factory give me a already existing trigger,
+                # so my name can be dropped
+                self.triggers.append(t.get_name())
+        
+
+
+    # Link with triggers. Can be with a "in source" trigger, or a file name
+    def linkify_with_triggers(self, triggers):
+        # Get our trigger string and trigger names in the same list
+        self.triggers.extend(self.trigger_name)
+        #print "I am linking my triggers", self.get_full_name(), self.triggers
+        new_triggers = []
+        for tname in self.triggers:
+            t = triggers.find_by_name(tname)
+            if t:
+                print "Go link the trigger", t.__dict__
+                new_triggers.append(t)
+            else:
+                self.configuration_errors.append('the %s %s does have a unknown trigger_name "%s"' % (self.__class__.my_type, self.get_full_name(), tname))
+        self.triggers = new_triggers
+
+        
+            
+        
 
 
 class Items(object):
@@ -1008,6 +1042,12 @@ class Items(object):
                 setattr(i, prop, com_list)
 
 
+    # Link with triggers. Can be with a "in source" trigger, or a file name
+    def linkify_with_triggers(self, triggers):
+        for i in self:
+            i.linkify_with_triggers(triggers)
+
+
     def evaluate_hostgroup_expression(self, expr, hosts, hostgroups, look_in='hostgroups'):
         begin = 0
         end = len(expr)
@@ -1085,6 +1125,11 @@ class Items(object):
             if i.host_name == '':
                 i.register = '0'
 
+
+    # Take our trigger strings and create true objects with it
+    def explode_trigger_string_into_triggers(self, triggers):
+        for i in self:
+            i.explode_trigger_string_into_triggers(triggers)
 
 
 class HostGroup_Name_Parse_Ctx(object):

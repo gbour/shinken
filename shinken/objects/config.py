@@ -62,6 +62,7 @@ from discoveryrule import Discoveryrule, Discoveryrules
 from discoveryrun import Discoveryrun, Discoveryruns
 from hostextinfo import HostExtInfo, HostsExtInfo
 from serviceextinfo import ServiceExtInfo, ServicesExtInfo
+from trigger import Trigger, Triggers
 
 from shinken.arbiterlink import ArbiterLink, ArbiterLinks
 from shinken.schedulerlink import SchedulerLink, SchedulerLinks
@@ -97,6 +98,7 @@ class Config(Item):
     properties = {
         'prefix':                   StringProp(default='/usr/local/shinken/'),
         'workdir':                  StringProp(default=''),
+        'config_base_dir':         StringProp(default=''), # will be set when we will load a file
         'use_local_log':            BoolProp(default='1'),
         'local_log':                StringProp(default='arbiterd.log'),
         'log_file':                 UnusedProp(text=no_longer_used_txt),
@@ -346,6 +348,8 @@ class Config(Item):
         random.seed(time.time())
         self.magic_hash = random.randint(1, 100000)
         self.configuration_errors = []
+        self.triggers_dirs = []
+        self.triggers = Triggers({})
 
 
     def get_name(self):
@@ -391,7 +395,7 @@ class Config(Item):
     def read_config(self, files):
         #just a first pass to get the cfg_file and all files in a buf
         res = StringIO()
-
+        
         for file in files:
             #We add a \n (or \r\n) to be sure config files are separated
             #if the previous does not finish with a line return
@@ -404,7 +408,7 @@ class Config(Item):
                 fd = open(file, 'rU')
                 buf = fd.readlines()
                 fd.close()
-                config_base_dir = os.path.dirname(file)
+                self.config_base_dir = os.path.dirname(file)
             except IOError, exp:
                 logger.error("Cannot open config file '%s' for reading: %s" % (file, exp))
                 #The configuration is invalid because we have a bad file!
@@ -424,7 +428,7 @@ class Config(Item):
                     if os.path.isabs(elts[1]):
                         cfg_file_name = elts[1]
                     else:
-                        cfg_file_name = os.path.join(config_base_dir, elts[1])
+                        cfg_file_name = os.path.join(self.config_base_dir, elts[1])
                     cfg_file_name = cfg_file_name.strip()
                     try:
                         fd = open(cfg_file_name, 'rU')
@@ -444,7 +448,7 @@ class Config(Item):
                     if os.path.isabs(elts[1]):
                         cfg_dir_name = elts[1]
                     else:
-                        cfg_dir_name = os.path.join(config_base_dir, elts[1])
+                        cfg_dir_name = os.path.join(self.config_base_dir, elts[1])
                     #Ok, look if it's really a directory
                     if not os.path.isdir(cfg_dir_name):
                         logger.error("Cannot open config dir '%s' for reading" % cfg_dir_name)
@@ -465,6 +469,20 @@ class Config(Item):
                                     # The configuration is invalid
                                     # because we have a bad file!
                                     self.conf_is_correct = False
+                elif re.search("^triggers_dir", line):
+                    elts = line.split('=', 1)
+                    if os.path.isabs(elts[1]):
+                        trig_dir_name = elts[1]
+                    else:
+                        trig_dir_name = os.path.join(self.config_base_dir, elts[1])
+                    # Ok, look if it's really a directory
+                    if not os.path.isdir(trig_dir_name):
+                        logger.error("Cannot open triggers dir '%s' for reading" % trig_dir_name)
+                        self.conf_is_correct = False
+                        continue
+                    # Ok it's a valid one, I keep it
+                    self.triggers_dirs.append(trig_dir_name)
+
         config = res.getvalue()
         res.close()
         return config
@@ -648,6 +666,13 @@ class Config(Item):
         self.modules.linkify()
 
 
+    # We will load all triggers .trig files from all triggers_dir
+    def load_triggers(self):
+        for p in self.triggers_dirs:
+            self.triggers.load_file(p)
+            
+
+
 
     # We use linkify to make the config more efficient : elements will be
     # linked, like pointers. For example, a host will have it's service,
@@ -668,7 +693,7 @@ class Config(Item):
         self.hosts.linkify(self.timeperiods, self.commands, \
                                self.contacts, self.realms, \
                                self.resultmodulations, self.businessimpactmodulations, \
-                               self.escalations, self.hostgroups)
+                               self.escalations, self.hostgroups, self.triggers)
 
         self.hostsextinfo.merge(self.hosts)
 
@@ -682,7 +707,7 @@ class Config(Item):
         self.services.linkify(self.hosts, self.commands, \
                                   self.timeperiods, self.contacts,\
                                   self.resultmodulations, self.businessimpactmodulations, \
-                                  self.escalations, self.servicegroups)
+                                  self.escalations, self.servicegroups, self.triggers)
 
         self.servicesextinfo.merge(self.services)
 
@@ -820,14 +845,15 @@ class Config(Item):
         self.contactgroups.explode()
 
         #print "Hosts"
-        self.hosts.explode(self.hostgroups, self.contactgroups)
+        self.hosts.explode(self.hostgroups, self.contactgroups, self.triggers)
         #print "Hostgroups"
         self.hostgroups.explode()
 
         #print "Services"
         #print "Initialy got nb of services : %d" % len(self.services.items)
         self.services.explode(self.hosts, self.hostgroups, self.contactgroups,
-                              self.servicegroups, self.servicedependencies)
+                              self.servicegroups, self.servicedependencies, 
+                              self.triggers)
         #print "finally got nb of services : %d" % len(self.services.items)
         #print "Servicegroups"
         self.servicegroups.explode()
@@ -1247,10 +1273,11 @@ class Config(Item):
         self.discoveryrules.create_reversed_list()
         self.discoveryruns.create_reversed_list()
         self.commands.create_reversed_list()
+        self.triggers.create_reversed_list()
         
-        #For services it's a special case
-        #we search for hosts, then for services
-        #it's quicker than search in all services
+        # For services it's a special case
+        # we search for hosts, then for services
+        # it's quicker than search in all services
         self.services.optimize_service_search(self.hosts)
 
 
@@ -1490,7 +1517,7 @@ class Config(Item):
                         links.add((e, s.host))
 
         # Same for hosts of course
-        for h in [ h for h in self.hosts if h.got_business_rule]:
+        for h in [h for h in self.hosts if h.got_business_rule]:
             for e in h.business_rule.list_all_elements():
                 if hasattr(e, 'host'): # if it's a service
                     if e.host != h:

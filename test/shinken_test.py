@@ -122,17 +122,18 @@ class ShinkenTest(unittest.TestCase):
         self.conf.instance_name = 'test'
         # Hack push_flavor, that is set by the dispatcher
         self.conf.push_flavor = 0
+        self.conf.load_triggers()
         self.conf.linkify_templates()
         self.conf.apply_inheritance()
         self.conf.explode()
-        print "Aconf.services has %d elements" % len(self.conf.services)
+        #print "Aconf.services has %d elements" % len(self.conf.services)
         self.conf.create_reversed_list()
         self.conf.remove_twins()
         self.conf.apply_implicit_inheritance()
         self.conf.fill_default()
         self.conf.remove_templates()
         self.conf.compute_hash()
-        print "conf.services has %d elements" % len(self.conf.services)
+        #print "conf.services has %d elements" % len(self.conf.services)
         self.conf.create_reversed_list()
         self.conf.pythonize()
         self.conf.linkify()
