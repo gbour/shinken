@@ -32,6 +32,7 @@ import signal
 import time
 from re import compile
 from multiprocessing import Queue, Process
+from setproctitle import setproctitle
 
 from shinken.log import logger
 
@@ -244,8 +245,17 @@ class BaseModule(object):
         """
         raise NotImplementedError()
 
+    def set_proctitle(self, name):
+        try:
+            from setproctitle import setproctitle
+            setproctitle("shinken-module: %s" % name)
+        except:
+            pass
+
     def main(self):
         """module "main" method. Only used by external modules."""
+        self.set_proctitle(self.name)
+
         self.set_signal_handler()
         logger.info("[%s[%d]]: Now running.." % (self.name, os.getpid()))
         while not self.interrupted:

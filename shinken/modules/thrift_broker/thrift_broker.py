@@ -914,6 +914,8 @@ class Thrift_broker(BaseModule):
         os.dup2(fdtemp, 2)  # standard error (2)
 
     def main(self):
+        self.set_proctitle(self.name)
+
         try:
             #import cProfile
             #cProfile.runctx('''self.do_main()''', globals(), locals(),'/tmp/thrift.profile')
