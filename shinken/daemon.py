@@ -150,7 +150,6 @@ class Daemon(object):
     }
 
     def __init__(self, name, config_file, is_daemon, do_replace, debug, debug_file):
-
         self.check_shm()
 
         self.name = name
@@ -250,13 +249,21 @@ class Daemon(object):
     def dump_memory(self):
         logger.info("I dump my memory, it can ask some seconds to do")
 
+        try:
+            from datetime import datetime
+            from meliae import scanner
+            scanner.dump_all_objects('/tmp/%s-memory.%s.json' % (self.name, datetime.now().strftime("%Y%m%dT%H:%M:%S")))
+        except:
+            logger.warning('I do not have the module meliae for memory dump, please install it')
 
+        """
         try:
             from guppy import hpy
             hp = hpy()
             logger.info(hp.heap())
         except ImportError:
             logger.warning('I do not have the module guppy for memory dump, please install it')
+        """ 
 
     def load_config_file(self):
         self.parse_config_file()
@@ -644,11 +651,12 @@ class Daemon(object):
 
     def manage_signal(self, sig, frame):
         logger.debug("I'm process %d and I received signal %s" % (os.getpid(), str(sig)))
-        if sig == 10:  # if USR1, ask a memory dump
-            self.need_dump_memory = True
+        if sig == 10: # if USR1, ask a memory dump
+            #self.need_dump_memory = True
+            self.dump_memory()
         elif sig == 12: # if USR2, ask objects dump
             self.need_objects_dump = True
-        else:  # Ok, really ask us to die :)
+        else: #Ok, really ask us to die :)
             self.interrupted = True
 
     def set_exit_handler(self):
@@ -772,3 +780,4 @@ class Daemon(object):
     # Save, to get back all data
     def restore_retention_data(self, data):
         pass
+
