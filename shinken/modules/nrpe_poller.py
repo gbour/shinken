@@ -465,6 +465,8 @@ class Nrpe_poller(BaseModule):
         print "[Nrpe] Module NRPE started!"
         ## restore default signal handler for the workers:
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        self.set_proctitle('Nrpe poller')
+
         timeout = 1.0
         self.checks = []
 
