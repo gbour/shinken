@@ -194,7 +194,7 @@ class Android_reactionner(BaseModule):
     # c = Control Queue for the worker
     def work(self, s, returns_queue, c):
         print "Module Android started!"
-        self.set_proctitle('Android sms')
+        self.set_proctitle(self.name)
 
         self.android = android.Android()
         timeout = 1.0
