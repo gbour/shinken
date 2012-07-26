@@ -32,7 +32,6 @@ import signal
 import time
 from re import compile
 from multiprocessing import Queue, Process
-from setproctitle import setproctitle
 
 from shinken.log import logger
 
